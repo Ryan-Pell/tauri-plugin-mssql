@@ -1,0 +1,15 @@
+[package]
+name = "tauri-plugin-mssql"
+version = "0.0.0"
+authors = [ "You" ]
+description = "Interface with MSSQL Database"
+edition = "2021"
+rust-version = "1.59"
+exclude = ["/webview-dist", "/webview-src", "node_modules"]
+
+[dependencies]
+tauri = { version = "1.2.4" }
+serde = "1.0"
+thiserror = "1.0"
+tiberius = { version = "0.12.2", features = ["async-std", "sql-browser-async-std"] }
+async-std = "1.12.0"
