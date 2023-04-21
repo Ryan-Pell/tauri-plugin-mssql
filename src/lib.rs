@@ -3,11 +3,10 @@
 use serde::{ser::Serializer, Serialize};
 use tauri::utils::config::{self, ClipboardAllowlistConfig};
 use tauri::{command, plugin::{Builder, TauriPlugin}, AppHandle, Manager, Runtime, State, Window};
-use std::fmt::Error;
 use std::option;
 use std::{collections::HashMap};
 use serde::Deserialize;
-use tiberius::{Client, Config, AuthMethod, SqlBrowser, ExecuteResult};
+use tiberius::{Client, Config, AuthMethod, SqlBrowser, ExecuteResult, error::Error};
 use async_std::{net::TcpStream, sync::Mutex};
 
 
@@ -52,7 +51,7 @@ impl SqlConfig {
 /**INITIALISING THE PLUGIN */
 pub fn init<R: Runtime>(init_config: SqlConfig) -> TauriPlugin<R> {
   Builder::new("mssql")
-    .invoke_handler(tauri::generate_handler![connect])
+    .invoke_handler(tauri::generate_handler![connect, disconnect, is_connection_active])
     .setup(|app| {
       let mut config = ConfInstance::default();
 
@@ -75,43 +74,45 @@ pub fn init<R: Runtime>(init_config: SqlConfig) -> TauriPlugin<R> {
 
 /**PLUGIN COMMANDS */
 #[command]
-fn connect<R: Runtime>(_app: AppHandle<R>, conf_instance: State<'_, ConfInstance>, /*db_instance: State<'_, DbInstances>,*/ db: Option<String>) -> Result<(), String> {
-  if db.is_some() {
-    let Db = db.clone().unwrap();
+async fn connect<R: Runtime>(_app: AppHandle<R>, conf_instance: State<'_, ConfInstance>, /*db_instance: State<'_, DbInstances>,*/ db: Option<String>) -> Result<(), String> {
+  //Check for Open Connection
+  if true { return Err("A connection is already active. Disconnect from the current connection then reconnect".to_owned()); }
 
-    let ext_config;
-    if Db.starts_with("jdbc:sqlserver://") { ext_config = Config::from_jdbc_string(&Db); }
-    else { ext_config = Config::from_ado_string(&Db); }
+  //Set Connection String
+  let config: Config;
+  if db.is_some() {
+    let db: String = db.clone().unwrap();
+
+    let ext_config: Result<Config, Error>;
+    if db.starts_with("jdbc:sqlserver://") { ext_config = Config::from_jdbc_string(&db); }
+    else { ext_config = Config::from_ado_string(&db); }
 
     //check for errors on external;
-    if ext_config.is_err() {
-      panic!("Error")
-    }
-    println!("{:?}", ext_config);
+    if ext_config.is_err() { return Err("Invalid Input String. This should be formatted to be a a valid JBDC connection string or .NET connection string.".to_owned()); }
+    else { config = ext_config.unwrap(); }
   }
+  else { config = conf_instance.0.clone(); }
 
 
-  
-  let conf = conf_instance.0.clone();
-  println!("{:?}", conf);
+
+  let tcp: Result<TcpStream, Error> = TcpStream::connect_named(&config).await;
+  // check for tcp error
+  if tcp.is_err() { return Err("TCP Error".to_owned()); }
+
+
+  let client = Client::connect(config, tcp.unwrap()).await;
 
   Ok(())
+}
 
-  // let tcp = TcpStream::connect_named(&conf).await;
-  // match tcp {
-  //   Ok(tcp_stream) => {
-  //     let client = Client::connect(conf, tcp_stream).await;
-  //     match client {
-  //         Ok(c) => {
-  //           println!("ok");
+#[command]
+async fn disconnect<R: Runtime>(_app: tauri::AppHandle<R>, /*db_instance: State<'_, DbInstances>*/) -> Result<(), String> {
+  Ok(())
+}
 
-  //           let _ = c.close().await;
-  //         },
-  //         Err(e) => println!("{:?}", e)
-  //     }
+#[command]
+async fn is_connection_active<R: Runtime>(_app: tauri::AppHandle<R>, db_instance: State<'_, DbInstances>) -> Result<bool, String> {
 
-  //     Ok(())
-  //   },
-  //   Err(e) => Ok(())
-  // }
+
+  Ok(true)
 }
