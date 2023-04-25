@@ -1,7 +1,7 @@
 [package]
 name = "tauri-plugin-mssql"
-version = "0.0.0"
-authors = [ "You" ]
+version = "1.0.0"
+authors = [ "Ryan Pell <ryan@ryanpell.co.uk>"" ]
 description = "Interface with MSSQL Database"
 edition = "2021"
 rust-version = "1.59"

@@ -1,7 +1,7 @@
 {
-  "name": "tauri-plugin-mssql-api",
-  "version": "0.0.0",
-  "author": "You",
+  "name": "@ryanpell/tauri-plugin-mssql-api",
+  "version": "1.0.0",
+  "author": "Ryan Pell <ryan@ryanpell.co.uk>",
   "description": "",
   "browser": "js-dist/index.js",
   "main": "js-dist/index.js",
@@ -9,7 +9,7 @@
   "exports": {
     "browser": "js-dist/index.js",
     "main": "js-dist/index.js",
-    "types": "js-dist/index.d.ts",
+    "types": "js-dist/index.d.ts"
   },
   "files": [
     "js-dist",
