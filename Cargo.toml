@@ -13,3 +13,5 @@ serde = "1.0"
 thiserror = "1.0"
 tiberius = { version = "0.12.2", features = ["async-std", "sql-browser-async-std"] }
 async-std = "1.12.0"
+serde_json = "1.0.96"
+chrono = "0.4.24"

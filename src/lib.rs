@@ -1,17 +1,18 @@
 
 
+use chrono::{NaiveDateTime, DateTime, Duration, NaiveTime, Utc};
 use serde::{ser::Serializer, Serialize};
+use serde_json::{value, json};
 use tauri::utils::config::{self, ClipboardAllowlistConfig};
 use tauri::{command, plugin::{Builder, TauriPlugin}, AppHandle, Manager, Runtime, State, Window};
-use std::option;
+use tiberius::{ColumnData, FromSqlOwned};
+use std::str::FromStr;
 use std::{collections::HashMap};
 use serde::Deserialize;
-use tiberius::{Client, Config, AuthMethod, SqlBrowser, ExecuteResult, error::Error};
-use async_std::{net::TcpStream, sync::Mutex};
+use tiberius::{Client, Config, AuthMethod, SqlBrowser, error::Error, FromSql, Row};
+use async_std::{net::TcpStream};
 
 
-#[derive(Default)]
-struct DbInstances(Mutex<HashMap<String, Client<TcpStream>>>);
 
 /**SQL CONFIGURATION INIT INPUT */
 #[derive(Default, Debug)]
@@ -51,7 +52,7 @@ impl SqlConfig {
 /**INITIALISING THE PLUGIN */
 pub fn init<R: Runtime>(init_config: SqlConfig) -> TauriPlugin<R> {
   Builder::new("mssql")
-    .invoke_handler(tauri::generate_handler![connect, disconnect, is_connection_active])
+    .invoke_handler(tauri::generate_handler![query])
     .setup(|app| {
       let mut config = ConfInstance::default();
 
@@ -72,12 +73,8 @@ pub fn init<R: Runtime>(init_config: SqlConfig) -> TauriPlugin<R> {
 /**************/
 
 
-/**PLUGIN COMMANDS */
-#[command]
-async fn connect<R: Runtime>(_app: AppHandle<R>, conf_instance: State<'_, ConfInstance>, /*db_instance: State<'_, DbInstances>,*/ db: Option<String>) -> Result<(), String> {
-  //Check for Open Connection
-  if true { return Err("A connection is already active. Disconnect from the current connection then reconnect".to_owned()); }
-
+/**RUST COMMANDS */
+async fn connect(conf_instance: State<'_, ConfInstance>, db: Option<String>) -> Result<Client<TcpStream>, String> {
   //Set Connection String
   let config: Config;
   if db.is_some() {
@@ -93,26 +90,73 @@ async fn connect<R: Runtime>(_app: AppHandle<R>, conf_instance: State<'_, ConfIn
   }
   else { config = conf_instance.0.clone(); }
 
-
-
+  //connect to tcp
   let tcp: Result<TcpStream, Error> = TcpStream::connect_named(&config).await;
-  // check for tcp error
   if tcp.is_err() { return Err("TCP Error".to_owned()); }
 
-
-  let client = Client::connect(config, tcp.unwrap()).await;
-
-  Ok(())
+  //connect to sql browser
+  match Client::connect(config, tcp.unwrap()).await {
+    Ok(c) => Ok(c),
+    Err(error) => Err(error.to_string())
+  }
 }
 
+/**PLUGIN COMMANDS */
 #[command]
-async fn disconnect<R: Runtime>(_app: tauri::AppHandle<R>, /*db_instance: State<'_, DbInstances>*/) -> Result<(), String> {
-  Ok(())
-}
+async fn query<R: Runtime>(_app: tauri::AppHandle<R>, conf_instance: State<'_, ConfInstance>, db: Option<String>, tsql: Option<String>) -> Result<String, String> {
+  if tsql.is_none(){ return Err("Requires TSQL to be set to run query on database.".into()); }
 
-#[command]
-async fn is_connection_active<R: Runtime>(_app: tauri::AppHandle<R>, db_instance: State<'_, DbInstances>) -> Result<bool, String> {
+  match connect(conf_instance, db).await {
+    Ok(mut client) => {
+      //run query
+      let query = client.simple_query(tsql.unwrap()).await;
 
+      match query {
+        Ok(qs) => {
+          //get results
+          let results = qs.into_results().await;
+          if results.is_err() { return Err(results.err().unwrap().to_string()); }
+          
+          /***Convert Results into JSON */
+          let result_sets = results.unwrap();
+          let mut record_sets: Vec<Vec<HashMap<String, String>>> = Vec::new();
 
-  Ok(true)
+          for result_set in result_sets {
+            let mut record_set: Vec<HashMap<String, String>> = Vec::new();
+            
+            //get rows
+            for row in result_set {
+              let columns: Vec<String> = row.columns().iter().map(|f| f.name().to_string()).collect();
+              let mut output: HashMap<String, String> = HashMap::new();
+
+              /***sql into strings */
+              for (id, item) in row.into_iter().enumerate() {
+                let value: String = match item {
+                  ColumnData::Binary(_) => "<binary data>".into(),
+                  ColumnData::Bit(val) => val.unwrap_or_default().to_string(),
+                  ColumnData::String(val) => val.unwrap_or_default().to_string(),
+                  ColumnData::I16(val) => val.unwrap_or_default().to_string(),
+                  ColumnData::I32(val) => val.unwrap_or_default().to_string(),
+                  ColumnData::I64(val) => val.unwrap_or_default().to_string(),
+                  ColumnData::Numeric(val) => val.unwrap().to_string(),
+                  ColumnData::F32(val) => val.unwrap_or_default().to_string(),
+                  ColumnData::F64(val) => val.unwrap_or_default().to_string(),
+                  _ => "nada".into()
+                };
+
+                output.insert(columns[id].clone(), value); //output to hashmap
+              }
+              record_set.push(output); //push output to record set
+            }
+            record_sets.push(record_set); //push record_set to records_sets
+          }
+
+          return Ok(json!({"recordsets": record_sets}).to_string());
+        },
+        Err(error) => { return Err(error.to_string()); } //return error if problem with query
+      }
+      
+    },
+    Err(error) => { return Err(error.into()); }
+  }
 }
