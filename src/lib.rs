@@ -1,17 +1,8 @@
-
-
-use chrono::{NaiveDateTime, DateTime, Duration, NaiveTime, Utc};
-use serde::{ser::Serializer, Serialize};
-use serde_json::{value, json};
-use tauri::utils::config::{self, ClipboardAllowlistConfig};
-use tauri::{command, plugin::{Builder, TauriPlugin}, AppHandle, Manager, Runtime, State, Window};
-use tiberius::{ColumnData, FromSqlOwned};
-use std::str::FromStr;
-use std::{collections::HashMap};
-use serde::Deserialize;
-use tiberius::{Client, Config, AuthMethod, SqlBrowser, error::Error, FromSql, Row};
+use serde_json::json;
+use tauri::{command, plugin::{Builder, TauriPlugin}, Manager, Runtime, State};
+use std::collections::HashMap;
+use tiberius::{Client, Config, AuthMethod, SqlBrowser, error::Error, ColumnData};
 use async_std::{net::TcpStream};
-
 
 
 /**SQL CONFIGURATION INIT INPUT */
@@ -100,6 +91,7 @@ async fn connect(conf_instance: State<'_, ConfInstance>, db: Option<String>) -> 
     Err(error) => Err(error.to_string())
   }
 }
+
 
 /**PLUGIN COMMANDS */
 #[command]
