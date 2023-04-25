@@ -3,11 +3,21 @@
   "version": "0.0.0",
   "author": "You",
   "description": "",
-  "browser": "webview-dist/index.js",
-  "main": "webview-dist/index.js",
-  "types": "webview-dist/index.d.ts",
+  "browser": "js-dist/index.js",
+  "main": "js-dist/index.js",
+  "types": "js-dist/index.d.ts",
+  "exports": {
+    "browser": "js-dist/index.js",
+    "main": "js-dist/index.js",
+    "types": "js-dist/index.d.ts",
+  },
+  "files": [
+    "js-dist",
+    "!js-dist/**/*.map",
+    "README.md"
+  ],
   "scripts": {
-    "build": "rollup -c ./rollup.config.js",
+    "build": "rollup -c ./js-guest/rollup.config.js",
     "prepublishOnly": "yarn build",
     "pretest": "yarn build"
   },

@@ -8,14 +8,16 @@ export default {
     dir: './js-dist',
     entryFileNames: '[name].js',
     format: 'es',
-    exports: 'auto'
+    exports: 'auto',
+    sourcemap: true,
+    plugins: []
   },
   plugins: [
     nodeResolve(),
     terser(),
     typescript({
-      tsconfig: './tsconfig.json',
-      moduleResolution: 'node'
+      tsconfig: './js-guest/tsconfig.json',
+      moduleResolution: 'node',
     })
   ]
 }
