@@ -1,5 +1,5 @@
 {
-  "name": "@ryanpell/tauri-plugin-mssql-api",
+  "name": "@ryanpell/tauri-plugin-mssql",
   "version": "1.0.0",
   "author": "Ryan Pell <ryan@ryanpell.co.uk>",
   "description": "",
