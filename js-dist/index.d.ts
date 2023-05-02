@@ -8,3 +8,4 @@ export declare function query(query: string, connection?: string): Promise<{
     raw: string;
     json: () => any;
 }>;
+export declare function defaultConnectionString(): Promise<void>;

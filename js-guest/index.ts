@@ -17,3 +17,7 @@ export async function query (query: string, connection?: string) {
     json: () => JSON.parse(returns)
   }
 }
+
+export async function defaultConnectionString () {
+
+}

@@ -1,14 +1,15 @@
 use serde_json::json;
 use tauri::{command, plugin::{Builder, TauriPlugin}, Manager, Runtime, State};
-use std::collections::HashMap;
+use std::{collections::HashMap, string};
 use tiberius::{Client, Config, AuthMethod, SqlBrowser, error::Error, ColumnData};
 use async_std::{net::TcpStream};
 
 
 /**SQL CONFIGURATION INIT INPUT */
 #[derive(Default, Debug)]
-struct ConfInstance(Config);
+struct ConfInstance(SqlConfig);
 
+#[derive(Clone, Debug, Default)]
 pub struct SqlConfig {
   application_name: Option<String>,
   host: String,
@@ -17,7 +18,8 @@ pub struct SqlConfig {
   auth: Auth
 }
 
-struct Auth {
+#[derive(Clone, Debug, Default)]
+pub struct Auth {
   username: String,
   password: String
 }
@@ -27,8 +29,8 @@ impl SqlConfig {
     application_name: None,
     host: "".to_owned(), 
     instance_name: "".to_owned(), 
-    database: None, auth: 
-    Auth { username: "".to_owned(), password: "".to_owned() }
+    database: None, 
+    auth: Auth { username: "".to_owned(), password: "".to_owned() }
   }}
 
   pub fn application_name(&mut self, app_name: impl ToString) { self.application_name = Some(app_name.to_string()); }
@@ -36,6 +38,21 @@ impl SqlConfig {
   pub fn instance_name(&mut self, instance_name: impl ToString) { self.instance_name = instance_name.to_string(); }
   pub fn database(&mut self, database: impl ToString) { self.database = Some(database.to_string()); }
   pub fn auth(&mut self, usr: impl ToString, pwd: impl ToString) { self.auth = Auth { username: usr.to_string(), password: pwd.to_string() } }
+
+  pub fn get_tiberius_config(&self) -> Config {
+    let settings = self.clone();
+    let mut config = Config::new();
+
+    config.host(settings.host);
+    config.instance_name(settings.instance_name);
+    config.authentication(AuthMethod::sql_server(settings.auth.username, settings.auth.password));
+    config.trust_cert();
+
+    if settings.application_name.is_some() { config.application_name( String::from(settings.application_name.unwrap())); }
+    if settings.database.is_some() { config.database( String::from(settings.database.unwrap()) ); }
+
+    config
+  }
 }
 /**************/
 
@@ -43,18 +60,10 @@ impl SqlConfig {
 /**INITIALISING THE PLUGIN */
 pub fn init<R: Runtime>(init_config: SqlConfig) -> TauriPlugin<R> {
   Builder::new("mssql")
-    .invoke_handler(tauri::generate_handler![query])
+    .invoke_handler(tauri::generate_handler![query, default_config])
     .setup(|app| {
       let mut config = ConfInstance::default();
-
-      config.0.host(init_config.host);
-      config.0.instance_name(init_config.instance_name);
-      config.0.authentication(AuthMethod::sql_server(init_config.auth.username, init_config.auth.password));
-      config.0.trust_cert();
-
-      if init_config.application_name.is_some() { config.0.application_name(init_config.application_name.unwrap().to_string()); }
-      if init_config.database.is_some() { config.0.database(init_config.database.unwrap().to_string()); }
-
+      config.0 = init_config;
       app.manage(config);
 
       Ok(())
@@ -79,7 +88,7 @@ async fn connect(conf_instance: State<'_, ConfInstance>, db: Option<String>) -> 
     if ext_config.is_err() { return Err("Invalid Input String. This should be formatted to be a a valid JBDC connection string or .NET connection string.".to_owned()); }
     else { config = ext_config.unwrap(); }
   }
-  else { config = conf_instance.0.clone(); }
+  else { config = conf_instance.0.get_tiberius_config().clone(); }
 
   //connect to tcp
   let tcp: Result<TcpStream, Error> = TcpStream::connect_named(&config).await;
@@ -151,4 +160,17 @@ async fn query<R: Runtime>(_app: tauri::AppHandle<R>, conf_instance: State<'_, C
     },
     Err(error) => { return Err(error.into()); }
   }
+}
+
+#[command]
+async fn default_config<R: Runtime>(app: tauri::AppHandle<R>, conf_instance: State<'_, ConfInstance>) -> Result<String, String> {
+  let conf = &conf_instance.0;
+
+  Ok(json!({
+    "host": conf.host,
+    "database": conf.database,
+    "instanceName": conf.instance_name,
+    "applicationName": conf.application_name,
+    "user": conf.auth.username,
+  }).to_string())
 }
