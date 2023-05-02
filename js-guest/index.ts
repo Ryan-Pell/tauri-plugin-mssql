@@ -19,5 +19,5 @@ export async function query (query: string, connection?: string) {
 }
 
 export async function defaultConnectionString () {
-
+  return await invoke('plugin:mssql|default_config')
 }
