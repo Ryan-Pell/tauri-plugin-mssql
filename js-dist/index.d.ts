@@ -1,3 +1,9 @@
+declare type Results = {
+    recordsets: Array<RecordSet<any>>;
+};
+export declare type RecordSet<T> = {
+    recordset: Array<T>;
+};
 /**
  *
  * @param {string} query This is the query that the server will run and return the data.
@@ -6,7 +12,7 @@
  */
 export declare function query(query: string, connection?: string): Promise<{
     raw: string;
-    json: () => string;
+    json: () => Results;
 }>;
 export interface SqlConnection {
     applicationName: string | null;
@@ -20,3 +26,4 @@ export interface SqlConnection {
  * @returns {Promise<SqlConnection>} This will return the default connection string provided in the Tauri Rust setup.
  */
 export declare function defaultConnectionString(): Promise<SqlConnection>;
+export {};
