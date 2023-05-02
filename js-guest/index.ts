@@ -22,12 +22,20 @@ export function query (query: string, connection?: string) {
   })  
 }
 
+export interface SqlConnection {
+  applicationName: string | null,
+  database: string | null,
+  host: string| null,
+  instanceName: string | null,
+  user: string | null
+}
+
 /**
  * 
- * @returns {Promise<string>} This will return the default connection string provided in the Tauri Rust setup. 
+ * @returns {Promise<SqlConnection>} This will return the default connection string provided in the Tauri Rust setup. 
  */
 export function defaultConnectionString () {
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<SqlConnection>((resolve, reject) => {
     invoke('plugin:mssql|default_config')
       .then((config: any) => resolve(JSON.parse(config)))
       .catch(err => reject(err))

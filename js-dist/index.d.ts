@@ -8,8 +8,15 @@ export declare function query(query: string, connection?: string): Promise<{
     raw: string;
     json: () => string;
 }>;
+export interface SqlConnection {
+    applicationName: string | null;
+    database: string | null;
+    host: string | null;
+    instanceName: string | null;
+    user: string | null;
+}
 /**
  *
- * @returns {Promise<string>} This will return the default connection string provided in the Tauri Rust setup.
+ * @returns {Promise<SqlConnection>} This will return the default connection string provided in the Tauri Rust setup.
  */
-export declare function defaultConnectionString(): Promise<string>;
+export declare function defaultConnectionString(): Promise<SqlConnection>;
