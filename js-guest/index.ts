@@ -29,7 +29,7 @@ export function query (query: string, connection?: string) {
 export function defaultConnectionString () {
   return new Promise<string>((resolve, reject) => {
     invoke('plugin:mssql|default_config')
-      .then((config: any) => resolve(config))
+      .then((config: any) => resolve(JSON.parse(config)))
       .catch(err => reject(err))
   })
 }
