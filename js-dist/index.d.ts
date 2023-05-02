@@ -1,9 +1,8 @@
 declare type Results = {
     recordsets: Array<RecordSet<any>>;
 };
-export declare type RecordSet<T> = {
-    recordset: Array<T>;
-};
+export interface RecordSet<T> extends Array<T> {
+}
 /**
  *
  * @param {string} query This is the query that the server will run and return the data.

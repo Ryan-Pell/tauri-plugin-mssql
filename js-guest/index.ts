@@ -4,9 +4,7 @@ type Results = {
   recordsets: Array<RecordSet<any>>
 }
 
-export type RecordSet<T> = {
-  recordset: Array<T>
-}
+export interface RecordSet<T> extends Array<T>  {}
 
 /**
  * 
