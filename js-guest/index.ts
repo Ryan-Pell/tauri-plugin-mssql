@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/tauri'
  * @returns {Promise<{raw: string, json: void}>} This will return a object with the raw string from the database query and a json function to get a parsed version of the query.
  */
 export function query (query: string, connection?: string) {
-  return new Promise((resolve, reject) => {
+  return new Promise<{raw: string, json: () => string}>((resolve, reject) => {
     let options = {tsql: query} as { tsql: string, connection?: string}
     if(connection){ options = { ...options, connection } } //add connection string to options
 
