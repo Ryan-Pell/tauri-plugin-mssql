@@ -1,5 +1,13 @@
 import { invoke } from '@tauri-apps/api/tauri'
 
+type Results = {
+  recordsets: Array<RecordSet<any>>
+}
+
+export type RecordSet<T> = {
+  recordset: Array<T>
+}
+
 /**
  * 
  * @param {string} query This is the query that the server will run and return the data.
@@ -7,7 +15,7 @@ import { invoke } from '@tauri-apps/api/tauri'
  * @returns {Promise<{raw: string, json: void}>} This will return a object with the raw string from the database query and a json function to get a parsed version of the query.
  */
 export function query (query: string, connection?: string) {
-  return new Promise<{raw: string, json: () => string}>((resolve, reject) => {
+  return new Promise<{raw: string, json: () => Results}>((resolve, reject) => {
     let options = {tsql: query} as { tsql: string, connection?: string}
     if(connection){ options = { ...options, connection } } //add connection string to options
 
