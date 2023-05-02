@@ -18,6 +18,14 @@ export async function query (query: string, connection?: string) {
   }
 }
 
-export async function defaultConnectionString () {
-  return await invoke('plugin:mssql|default_config')
+/**
+ * 
+ * @returns {Promise<string>} This will return the default connection string provided in the Tauri Rust setup. 
+ */
+export function defaultConnectionString () {
+  return new Promise<string>((resolve, reject) => {
+    invoke('plugin:mssql|default_config')
+      .then((config: any) => resolve(JSON.parse(config)))
+      .catch(error => {console.error(error)})
+  })
 }
