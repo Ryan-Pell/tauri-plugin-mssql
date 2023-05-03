@@ -6,11 +6,12 @@ import { invoke } from '@tauri-apps/api/tauri'
  * @returns This will return nothing if successfully connected. If there is an error the error will be returned.
  */
 export function connect (connection?: string) {
-  return new Promise((reject) => {
+  return new Promise<boolean>((resolve, reject) => {
     let options: { db?: string} = {}
     if(connection){ options = { ...options, db: connection } }
 
     invoke('plugin:mssql|connect', options)
+      .then(() => resolve(true))
       .catch(error => reject(JSON.parse(error)))
   })
 }
@@ -20,8 +21,9 @@ export function connect (connection?: string) {
  * @returns This will return nothing if successfully disconnected. If an error occurs the error will be returned.
  */
 export function disconnect () {
-  return new Promise((reject) => {
+  return new Promise<boolean>((resolve, reject) => {
     invoke('plugin:mssql|disconnect')
+      .then(() => resolve(true))
       .catch(error => reject(JSON.parse(error)))
   })
 }
