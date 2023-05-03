@@ -1,8 +1,12 @@
 use serde_json::json;
 use tauri::{command, plugin::{Builder, TauriPlugin}, Manager, Runtime, State};
-use std::{collections::HashMap, string};
+use std::{collections::HashMap};
 use tiberius::{Client, Config, AuthMethod, SqlBrowser, error::Error, ColumnData};
-use async_std::{net::TcpStream};
+use async_std::{net::TcpStream, sync::Mutex};
+mod errors;
+
+#[derive(Default, Debug)]
+struct BrowserInstance(Mutex<HashMap<String, Client<TcpStream>>>);
 
 
 /**SQL CONFIGURATION INIT INPUT */
@@ -60,11 +64,14 @@ impl SqlConfig {
 /**INITIALISING THE PLUGIN */
 pub fn init<R: Runtime>(init_config: SqlConfig) -> TauriPlugin<R> {
   Builder::new("mssql")
-    .invoke_handler(tauri::generate_handler![query, default_config])
+    .invoke_handler(tauri::generate_handler![connect, disconnect, query, default_config])
     .setup(|app| {
       let mut config = ConfInstance::default();
       config.0 = init_config;
       app.manage(config);
+
+      let mut browser = BrowserInstance::default();
+      app.manage(browser);
 
       Ok(())
     })
@@ -73,8 +80,9 @@ pub fn init<R: Runtime>(init_config: SqlConfig) -> TauriPlugin<R> {
 /**************/
 
 
-/**RUST COMMANDS */
-async fn connect(conf_instance: State<'_, ConfInstance>, db: Option<String>) -> Result<Client<TcpStream>, String> {
+/**PLUGIN COMMANDS */
+#[tauri::command]
+async fn connect<R: Runtime>(_app: tauri::AppHandle<R>, conf_instance: State<'_, ConfInstance>, db: Option<String>, browser_instance: State<'_, BrowserInstance>) -> Result<(), String> {
   //Set Connection String
   let config: Config;
   if db.is_some() {
@@ -96,74 +104,89 @@ async fn connect(conf_instance: State<'_, ConfInstance>, db: Option<String>) -> 
 
   //connect to sql browser
   match Client::connect(config, tcp.unwrap()).await {
-    Ok(c) => Ok(c),
+    Ok(client) => {
+      let mut browser = browser_instance.0.lock().await;
+      browser.insert("client".to_string(), client);
+      Ok(())
+    },
     Err(error) => Err(error.to_string())
   }
 }
 
-
-/**PLUGIN COMMANDS */
-#[command]
-async fn query<R: Runtime>(_app: tauri::AppHandle<R>, conf_instance: State<'_, ConfInstance>, db: Option<String>, tsql: Option<String>) -> Result<String, String> {
-  if tsql.is_none(){ return Err("Requires TSQL to be set to run query on database.".into()); }
-
-  match connect(conf_instance, db).await {
-    Ok(mut client) => {
-      //run query
-      let query = client.simple_query(tsql.unwrap()).await;
-
-      match query {
-        Ok(qs) => {
-          //get results
-          let results = qs.into_results().await;
-          if results.is_err() { return Err(results.err().unwrap().to_string()); }
-          
-          /***Convert Results into JSON */
-          let result_sets = results.unwrap();
-          let mut record_sets: Vec<Vec<HashMap<String, String>>> = Vec::new();
-
-          for result_set in result_sets {
-            let mut record_set: Vec<HashMap<String, String>> = Vec::new();
-            
-            //get rows
-            for row in result_set {
-              let columns: Vec<String> = row.columns().iter().map(|f| f.name().to_string()).collect();
-              let mut output: HashMap<String, String> = HashMap::new();
-
-              /***sql into strings */
-              for (id, item) in row.into_iter().enumerate() {
-                let value: String = match item {
-                  ColumnData::Binary(_) => "<binary data>".into(),
-                  ColumnData::Bit(val) => val.unwrap_or_default().to_string(),
-                  ColumnData::String(val) => val.unwrap_or_default().to_string(),
-                  ColumnData::I16(val) => val.unwrap_or_default().to_string(),
-                  ColumnData::I32(val) => val.unwrap_or_default().to_string(),
-                  ColumnData::I64(val) => val.unwrap_or_default().to_string(),
-                  ColumnData::Numeric(val) => val.unwrap().to_string(),
-                  ColumnData::F32(val) => val.unwrap_or_default().to_string(),
-                  ColumnData::F64(val) => val.unwrap_or_default().to_string(),
-                  _ => "nada".into()
-                };
-
-                output.insert(columns[id].clone(), value); //output to hashmap
-              }
-              record_set.push(output); //push output to record set
-            }
-            record_sets.push(record_set); //push record_set to records_sets
-          }
-
-          return Ok(json!({"recordsets": record_sets}).to_string());
-        },
-        Err(error) => { return Err(error.to_string()); } //return error if problem with query
-      }
-      
+#[tauri::command]
+async fn disconnect<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: State<'_, BrowserInstance>) -> Result<(), String> {
+  let mut browser_map = browser_instance.0.lock().await;
+  match browser_map.get_mut("client") {
+    Some(browser) => {
+      browser_map.remove("client");
+      Ok(())
     },
-    Err(error) => { return Err(error.into()); }
+    None => Err(errors::no_active_connection(None))
+  }
+}
+
+#[tauri::command]
+async fn query<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: State<'_, BrowserInstance>, tsql: Option<String>) -> Result<String, String> {
+
+  //Check for Active Connection
+  let mut browser_map = browser_instance.0.lock().await;
+  if !browser_map.contains_key("client"){ return Err(errors::no_active_connection(None));}
+  let browser = browser_map.get_mut("client").unwrap();
+
+  //Check that TSQL query is present
+  if tsql.is_none(){ return Err(errors::general("Requires TSQL to be set to run query on database")); }
+
+  //run query
+  let query = browser.simple_query(tsql.unwrap()).await;
+
+  match query {
+    Ok(qs) => {
+      //get results
+      let results = qs.into_results().await;
+      if results.is_err() { return Err(results.err().unwrap().to_string()); }
+      
+      /***Convert Results into JSON */
+      let result_sets = results.unwrap();
+      let mut record_sets: Vec<Vec<HashMap<String, String>>> = Vec::new();
+
+      for result_set in result_sets {
+        let mut record_set: Vec<HashMap<String, String>> = Vec::new();
+        
+        //get rows
+        for row in result_set {
+          let columns: Vec<String> = row.columns().iter().map(|f| f.name().to_string()).collect();
+          let mut output: HashMap<String, String> = HashMap::new();
+
+          /***sql into strings */
+          for (id, item) in row.into_iter().enumerate() {
+            let value: String = match item {
+              ColumnData::Binary(_) => "<binary data>".into(),
+              ColumnData::Bit(val) => val.unwrap_or_default().to_string(),
+              ColumnData::String(val) => val.unwrap_or_default().to_string(),
+              ColumnData::I16(val) => val.unwrap_or_default().to_string(),
+              ColumnData::I32(val) => val.unwrap_or_default().to_string(),
+              ColumnData::I64(val) => val.unwrap_or_default().to_string(),
+              ColumnData::Numeric(val) => val.unwrap().to_string(),
+              ColumnData::F32(val) => val.unwrap_or_default().to_string(),
+              ColumnData::F64(val) => val.unwrap_or_default().to_string(),
+              _ => "nada".into()
+            };
+
+            output.insert(columns[id].clone(), value); //output to hashmap
+          }
+          record_set.push(output); //push output to record set
+        }
+        record_sets.push(record_set); //push record_set to records_sets
+      }
+
+      return Ok(json!({"recordsets": record_sets}).to_string());
+    },
+    Err(error) => { return Err(error.to_string()); } //return error if problem with query
   }
 }
 
 #[command]
-async fn default_config<R: Runtime>(app: tauri::AppHandle<R>, conf_instance: State<'_, ConfInstance>) -> Result<String, String> {
+async fn default_config<R: Runtime>(_app: tauri::AppHandle<R>, conf_instance: State<'_, ConfInstance>) -> Result<String, String> {
   let conf = &conf_instance.0;
 
   Ok(json!({
