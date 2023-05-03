@@ -8,7 +8,5 @@ pub fn no_active_connection(comment: Option<String>) -> String {
     None => String::from("null")
   };
 
-  println!("{}", cmt);
-
   format!("{{type: \"CONN\", description: \"No connection has previously been established\", comment: \"{}\"}}", cmt) 
 }
