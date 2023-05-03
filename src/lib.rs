@@ -64,7 +64,7 @@ impl SqlConfig {
 /**INITIALISING THE PLUGIN */
 pub fn init<R: Runtime>(init_config: SqlConfig) -> TauriPlugin<R> {
   Builder::new("mssql")
-    .invoke_handler(tauri::generate_handler![connect, disconnect, query, default_config])
+    .invoke_handler(tauri::generate_handler![connect, disconnect, query, default_config, connection_status])
     .setup(|app| {
       let mut config = ConfInstance::default();
       config.0 = init_config;
@@ -117,7 +117,7 @@ async fn connect<R: Runtime>(_app: tauri::AppHandle<R>, conf_instance: State<'_,
 async fn disconnect<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: State<'_, BrowserInstance>) -> Result<(), String> {
   let mut browser_map = browser_instance.0.lock().await;
   match browser_map.get_mut("client") {
-    Some(browser) => {
+    Some(_) => {
       browser_map.remove("client");
       Ok(())
     },
@@ -185,7 +185,7 @@ async fn query<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: State<'_
   }
 }
 
-#[command]
+#[tauri::command]
 async fn default_config<R: Runtime>(_app: tauri::AppHandle<R>, conf_instance: State<'_, ConfInstance>) -> Result<String, String> {
   let conf = &conf_instance.0;
 
@@ -196,4 +196,12 @@ async fn default_config<R: Runtime>(_app: tauri::AppHandle<R>, conf_instance: St
     "applicationName": conf.application_name,
     "user": conf.auth.username,
   }).to_string())
+}
+
+#[tauri::command]
+async fn connection_status<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: State<'_, BrowserInstance>) -> Result<bool, ()> {
+  let mut browser_map = browser_instance.0.lock().await;
+  let key = browser_map.contains_key("client");
+
+  Ok(key)
 }
