@@ -51,7 +51,7 @@ export function query (query: string, connection?: string) {
           json: () => JSON.parse(query.toString())
         })
       })
-      .catch(err => reject(err))
+      .catch(err => reject({ error: err, query }))
   })  
 }
 
