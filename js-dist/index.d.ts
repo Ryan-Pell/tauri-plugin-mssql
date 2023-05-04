@@ -17,12 +17,9 @@ export interface RecordSet<T> extends Array<T> {
 /**
  *
  * @param {string} query This is the query that the server will run and return the data.
- * @returns {Promise<{raw: string, json: void}>} This will return a object with the raw string from the database query and a json function to get a parsed version of the query.
+ * @returns {Promise<Results>} This will return a object with the raw string from the database query and a json function to get a parsed version of the query.
  */
-export declare function query(query: string, connection?: string): Promise<{
-    raw: string;
-    json: () => Results;
-}>;
+export declare function query(query: string, connection?: string): Promise<Results>;
 export interface SqlConnection {
     applicationName: string | null;
     database: string | null;
