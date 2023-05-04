@@ -37,20 +37,15 @@ export interface RecordSet<T> extends Array<T>  {}
 /**
  * 
  * @param {string} query This is the query that the server will run and return the data.
- * @returns {Promise<{raw: string, json: void}>} This will return a object with the raw string from the database query and a json function to get a parsed version of the query.
+ * @returns {Promise<Results>} This will return a object with the raw string from the database query and a json function to get a parsed version of the query.
  */
 export function query (query: string, connection?: string) {
-  return new Promise<{raw: string, json: () => Results}>((resolve, reject) => {
+  return new Promise<Results>((resolve, reject) => {
     let options = {tsql: query} as { tsql: string, connection?: string}
     if(connection){ options = { ...options, connection } } //add connection string to options
 
     invoke('plugin:mssql|query', options)
-      .then((query: any) => {
-        resolve({
-          raw: query,
-          json: () => JSON.parse(query.toString())
-        })
-      })
+      .then((query: any) => resolve(query))
       .catch(err => reject({ error: err, query }))
   })  
 }

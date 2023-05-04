@@ -1,4 +1,4 @@
-use serde_json::json;
+use serde_json::{json, Value};
 use tauri::{command, plugin::{Builder, TauriPlugin}, Manager, Runtime, State};
 use std::{collections::HashMap};
 use tiberius::{Client, Config, AuthMethod, SqlBrowser, error::Error, ColumnData};
@@ -126,7 +126,7 @@ async fn disconnect<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: Sta
 }
 
 #[tauri::command]
-async fn query<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: State<'_, BrowserInstance>, tsql: Option<String>) -> Result<String, String> {
+async fn query<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: State<'_, BrowserInstance>, tsql: Option<String>) -> Result<Value, String> {
 
   //Check for Active Connection
   let mut browser_map = browser_instance.0.lock().await;
@@ -147,28 +147,30 @@ async fn query<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: State<'_
       
       /***Convert Results into JSON */
       let result_sets = results.unwrap();
-      let mut record_sets: Vec<Vec<HashMap<String, String>>> = Vec::new();
+      let mut record_sets: Vec<Vec<HashMap<String, Value>>> = Vec::new();
 
       for result_set in result_sets {
-        let mut record_set: Vec<HashMap<String, String>> = Vec::new();
+        let mut record_set: Vec<HashMap<String, Value>> = Vec::new();
         
         //get rows
         for row in result_set {
           let columns: Vec<String> = row.columns().iter().map(|f| f.name().to_string()).collect();
-          let mut output: HashMap<String, String> = HashMap::new();
+          let mut output: HashMap<String, Value> = HashMap::new();
 
           /***sql into strings */
           for (id, item) in row.into_iter().enumerate() {
-            let value: String = match item {
+            println!("{:?}", item);
+
+            let value: Value = match item {
               ColumnData::Binary(_) => "<binary data>".into(),
-              ColumnData::Bit(val) => val.unwrap_or_default().to_string(),
-              ColumnData::String(val) => val.unwrap_or_default().to_string(),
-              ColumnData::I16(val) => val.unwrap_or_default().to_string(),
-              ColumnData::I32(val) => val.unwrap_or_default().to_string(),
-              ColumnData::I64(val) => val.unwrap_or_default().to_string(),
-              ColumnData::Numeric(val) => val.unwrap().to_string(),
-              ColumnData::F32(val) => val.unwrap_or_default().to_string(),
-              ColumnData::F64(val) => val.unwrap_or_default().to_string(),
+              ColumnData::Bit(val) => val.unwrap_or_default().into(),
+              ColumnData::String(val) => val.unwrap_or_default().into(),
+              ColumnData::I16(val) => val.unwrap_or_default().into(),
+              ColumnData::I32(val) => val.unwrap_or_default().into(),
+              ColumnData::I64(val) => val.unwrap_or_default().into(),
+              // ColumnData::Numeric(val) => val.unwrap().into(),
+              ColumnData::F32(val) => val.unwrap_or_default().into(),
+              ColumnData::F64(val) => val.unwrap_or_default().into(),
               _ => "nada".into()
             };
 
@@ -179,7 +181,7 @@ async fn query<R: Runtime>(_app: tauri::AppHandle<R>, browser_instance: State<'_
         record_sets.push(record_set); //push record_set to records_sets
       }
 
-      return Ok(json!({"recordsets": record_sets}).to_string());
+      return Ok(json!({"recordsets": record_sets}));
     },
     Err(error) => { return Err(error.to_string()); } //return error if problem with query
   }
